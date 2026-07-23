@@ -1,0 +1,30 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+python-dotenv==1.0.1
+pydantic>=2.7.4,<3
+pydantic-settings==2.3.0
+
+# LangGraph + LangChain
+langgraph==0.1.19
+langchain==0.2.6
+langchain-core>=0.2.22,<0.3
+langchain-groq==0.1.6
+
+# Uncomment when switching to paid LLM
+# langchain-openai==0.1.14
+# langchain-anthropic==0.1.19
+
+# Database
+supabase==2.5.0
+
+# Cache
+redis==5.0.7
+
+# HTTP
+httpx==0.27.0
+
+# Auth
+python-jose[cryptography]==3.3.0
+
+# Rate limiting
+slowapi==0.1.9
