@@ -79,6 +79,33 @@ async def extract_intent(
         return None
 
 
+def parse_travel_limit(message: str) -> float:
+    """Deterministically extract a HARD travel limit (in km) from the raw
+    message — independent of the LLM, which is unreliable at this. Returns 0
+    when no explicit limit is stated.
+
+    - "within/under 2 km"      -> 2.0
+    - "under 30 mins"          -> 2.0  (walking: ~15 min per km)
+    - "20 min drive"           -> 10.0 (driving: ~30 km/h)
+    - "walking distance"       -> 1.5
+    """
+    m = (message or "").lower()
+
+    km = re.search(r"(?:within|under|less than|max|below|<)?\s*(\d+(?:\.\d+)?)\s*(?:km|kilomet)", m)
+    if km:
+        return round(float(km.group(1)), 2)
+
+    mins = re.search(r"(?:within|under|less than|max|below|<)?\s*(\d+)\s*(?:min|minute)s?\b", m)
+    if mins:
+        val = int(mins.group(1))
+        if re.search(r"driv|by car|transit|\bbus\b|subway|ttc|train", m):
+            return round(val * 0.5, 2)   # ~30 km/h city driving
+        return round(val / 15.0, 2)      # walking: 15 min per km
+    if "walking distance" in m or "walkable" in m:
+        return 1.5
+    return 0.0
+
+
 def _walk_mins(km: float) -> int:
     return max(1, round((km * 1.2) / 4.8 * 60))
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { ArrowUp, ChevronsLeft, MessageCircle, Heart, MapPin, Star } from "lucide-react";
+import { ArrowUp, ChevronsLeft, MessageCircle, Heart, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBucoStore } from "@/store/useBucoStore";
 import { distanceLabel } from "@/lib/geo";
@@ -21,10 +21,11 @@ interface Props {
 }
 
 export default function ChatPanel({ results, onHoverResult, onFocusResult }: Props) {
-  const { sessions, activeSessionId, sendMessage, isLoading, userLocation, user, addToWishlist } =
+  const { sessions, activeSessionId, sendMessage, isLoading, userLocation, user, addToWishlist, setAuthModal } =
     useBucoStore();
   const [input, setInput]         = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const messages = sessions.find((s) => s.id === activeSessionId)?.messages ?? [];
@@ -44,6 +45,35 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   };
+
+  if (!user) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        className="absolute top-3 left-3 bottom-3 z-[1050] w-[315px] flex flex-col bg-white/95 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden"
+      >
+        <div className="flex items-center gap-2 px-3 py-[9px] border-b border-border flex-shrink-0">
+          <span className="w-[6px] h-[6px] rounded-full bg-teal" />
+          <span className="font-mono text-[10px] font-bold text-gray-700 tracking-[0.1em]">buco concierge</span>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+          <div className="font-serif text-[36px] italic text-rust opacity-70 mb-2 select-none">B</div>
+          <p className="font-mono text-[11px] font-bold text-gray-700 mb-1">Sign in to chat with Buco</p>
+          <p className="font-mono text-[9px] text-gray-500 leading-[1.9] mb-5">
+            your searches and history are saved<br />to your account — private to you
+          </p>
+          <button
+            onClick={() => setAuthModal(true)}
+            className="font-mono text-[10px] font-bold text-white bg-rust px-6 py-[10px] rounded-full tracking-[0.06em] hover:bg-rust-dark transition-all hover:shadow-md"
+          >
+            sign in to start
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   if (collapsed) {
     return (
@@ -123,14 +153,14 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
 
               {m.spots && m.spots.length > 0 && !isCurrentResults && (
                 <button
-                  onClick={() => onFocusResult(0)}
+                  onClick={() => setExpandedMsgId(expandedMsgId === m.id ? null : m.id)}
                   className="mt-1 font-mono text-[9px] font-bold text-teal tracking-[0.04em] hover:underline"
                 >
-                  ◦ {m.spots.length} spots from this answer
+                  {expandedMsgId === m.id ? "▾" : "▸"} {m.spots.length} spots from this answer
                 </button>
               )}
 
-              {m.spots && m.spots.length > 0 && isCurrentResults && (
+              {m.spots && m.spots.length > 0 && (isCurrentResults || expandedMsgId === m.id) && (
                 <div className="flex flex-col gap-[6px] mt-2 w-full">
                   <AnimatePresence initial={false}>
                     {m.spots.map((spot, i) => (
@@ -154,7 +184,7 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
                           </div>
                           <div className="font-mono text-[9px] text-gray-600 truncate flex items-center gap-1">
                             <span className="font-bold text-amber-dark">{spot.price_label}</span>
-                            {spot.rating && <span className="flex items-center gap-[2px]"><Star size={8} className="fill-amber text-amber" />{Number(spot.rating).toFixed(1)}</span>}
+                            {spot.buco_pick && <span className="flex items-center gap-[2px] text-teal">✦ pick</span>}
                           </div>
                           {(spot.lat != null) && (
                             <div className="font-mono text-[9px] text-teal font-bold flex items-center gap-1">

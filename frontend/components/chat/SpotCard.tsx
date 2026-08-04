@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { MapPin, Star, ExternalLink, Heart } from "lucide-react";
+import { MapPin, ExternalLink, Heart } from "lucide-react";
 import { Spot } from "@/types";
 import clsx from "clsx";
 
@@ -56,9 +56,9 @@ export default function SpotCard({ spot, onBookmark }: SpotCardProps) {
               {spot.is_open ? "open" : "closed"}
             </span>
           )}
-          {spot.rating && (
-            <span className="flex items-center gap-[3px] font-mono text-[9px] font-bold text-gray-600">
-              <Star size={9} className="fill-amber text-amber" />{Number(spot.rating).toFixed(1)}
+          {spot.buco_pick && (
+            <span className="flex items-center gap-[3px] font-mono text-[9px] font-bold text-teal">
+              ✦ buco pick
             </span>
           )}
           {spot.distance_km != null && spot.distance_km > 0 && (

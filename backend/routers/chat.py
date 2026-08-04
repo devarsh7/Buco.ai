@@ -4,8 +4,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from models.schemas import ChatRequest
 from agent.graph import run_agent_stream
-from agent.fastpath import extract_intent, should_fast_path, compose_answer
-from agent.tools import perform_search, CURRENT_USER_LOCATION
+from agent.fastpath import extract_intent, should_fast_path, compose_answer, parse_travel_limit
+from agent.tools import perform_search, CURRENT_USER_LOCATION, CURRENT_TRAVEL_LIMIT
 from db.supabase import save_conversation_message, get_conversation
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -109,6 +109,11 @@ async def chat(request: ChatRequest, req: Request):
     )
     CURRENT_USER_LOCATION.set(user_location)
 
+    # Deterministic hard travel limit from the raw words ("under 30 mins",
+    # "within 2 km"). Enforced strictly downstream, regardless of the LLM.
+    travel_limit = parse_travel_limit(request.message)
+    CURRENT_TRAVEL_LIMIT.set(travel_limit)
+
     # Load prior turns so the agent has memory within a session.
     history: list[dict] = []
     try:
@@ -124,6 +129,11 @@ async def chat(request: ChatRequest, req: Request):
         shown_names=_shown_names(history),
         prev_user_message=_prev_user_message(history),
     )
+
+    # Reflect the hard limit in the intent so the templated answer says
+    # "within X km" and the search enforces it.
+    if intent is not None and travel_limit and travel_limit > 0:
+        intent["radius_km"] = travel_limit
 
     if should_fast_path(intent):
         print(f"[chat] FAST PATH: {intent}")

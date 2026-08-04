@@ -18,6 +18,12 @@ CURRENT_USER_LOCATION: contextvars.ContextVar[dict | None] = contextvars.Context
     "buco_user_location", default=None
 )
 
+# A hard travel limit (km) parsed deterministically from the raw user message.
+# When >0, results past this distance are dropped entirely (no "nearest" fallback).
+CURRENT_TRAVEL_LIMIT: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "buco_travel_limit", default=0.0
+)
+
 YELP_BASE_URL = "https://api.yelp.com/v3/businesses/search"
 YELP_PRICE_MAP = {15: "1,2", 20: "1,2", 25: "1,2,3", 999: "1,2,3,4"}
 
@@ -133,6 +139,7 @@ async def perform_search(
     party_size: int = 1,
     max_distance_km: float = 0,
     exclude_names: list[str] | None = None,
+    include_curated: bool = True,
 ) -> dict:
     """Core search — callable directly (fast path) or via the agent tool.
     Returns {"spots": [...], "note": "...", "message": "..."}."""
@@ -140,6 +147,14 @@ async def perform_search(
     yelp_key = os.getenv("YELP_API_KEY", "")
     has_yelp = bool(yelp_key) and "your_yelp" not in yelp_key
     uloc = CURRENT_USER_LOCATION.get()
+
+    # A hard limit parsed from the raw message overrides the LLM and is enforced
+    # strictly — this is what makes "under 30 mins" never return farther places.
+    hard_radius = False
+    travel_limit = CURRENT_TRAVEL_LIMIT.get()
+    if travel_limit and travel_limit > 0:
+        max_distance_km = travel_limit
+        hard_radius = True
     print(f"[search_spots] query={query!r} location={location!r} price_max={price_max} "
           f"open_now={open_now} happy_hour_now={happy_hour_now} party_size={party_size} "
           f"max_distance_km={max_distance_km} exclude={exclude_names or []} "
@@ -159,7 +174,7 @@ async def perform_search(
             city=location.split(",")[0].strip(),
             price_max=price_max,
             limit=4 if has_yelp else 8,
-        )
+        ) if include_curated else []
         curated_formatted = []
         for s in curated:
             active, label = _happy_hour_status(s)
@@ -224,7 +239,10 @@ async def perform_search(
     # Radius filter on the full candidate list.
     if max_distance_km and max_distance_km > 0 and uloc:
         within = [s for s in merged if s.get("distance_km") is not None and s["distance_km"] <= max_distance_km]
-        if within:
+        if hard_radius:
+            # Strict: an explicit "within X" / "under N mins" — never show anything past it.
+            merged = within
+        elif within:
             merged = within
         elif merged:
             merged = sorted(merged, key=lambda s: s.get("distance_km", 9999))[:3]
