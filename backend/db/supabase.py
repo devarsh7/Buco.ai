@@ -23,6 +23,24 @@ def _is_uuid(value: str) -> bool:
         return False
 
 
+async def ensure_user(user_id: str) -> None:
+    """Guarantee a public.users row exists for this auth user.
+
+    Many tables (visits, lists, bookmarks…) FK to users(id); if the row is
+    missing those inserts fail. A DB trigger handles this on signup, but this
+    is a defensive backstop for accounts created before the trigger existed.
+    """
+    if not _is_uuid(user_id):
+        return
+    client = get_supabase_client()
+    try:
+        existing = client.table("users").select("id").eq("id", user_id).limit(1).execute()
+        if not existing.data:
+            client.table("users").insert({"id": user_id}).execute()
+    except Exception as e:
+        print(f"[supabase] ensure_user error: {e}")
+
+
 # ── SPOTS ─────────────────────────────────────────────────────────────────────
 
 # Filler words that carry no meaning for matching names/cuisines.
@@ -64,7 +82,7 @@ async def search_curated_spots(
         q = (
             client.table("spots")
             .select("*")
-            .ilike("city", f"%{city}%")
+            .ilike("city", f"*{city}*")
             .eq("verified", True)
         )
         if category:
@@ -78,7 +96,7 @@ async def search_curated_spots(
         if tokens:
             ors = []
             for t in tokens:
-                ors.append(f"name.ilike.%{t}%")
+                ors.append(f"name.ilike.*{t}*")
                 ors.append(f"cuisine_tags.cs.{{{t}}}")
             result = base_query().or_(",".join(ors)).limit(limit).execute()
             if result.data:
