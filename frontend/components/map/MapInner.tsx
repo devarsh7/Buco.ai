@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from "react-leaflet";
+import { useMemo, useEffect, useState, useRef, useCallback } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useBucoStore } from "@/store/useBucoStore";
-import { fetchSpots } from "@/lib/api";
+import { fetchSpots, fetchUserMap, fetchFriendsMap, fetchTowers, MapPin as VisitedPin, FriendPin, Tower } from "@/lib/api";
 import { haversineKm, walkMins, fallbackLocation } from "@/lib/geo";
 import { Spot, UserLocation } from "@/types";
+import { Heart } from "lucide-react";
 import ChatPanel from "./ChatPanel";
+import { houseIcon, friendIcon, towerIcon } from "./mapIcons";
+import CheckInModal from "@/components/checkin/CheckInModal";
+import RewardsModal from "@/components/rewards/RewardsModal";
 
 const TORONTO: [number, number] = [43.6532, -79.3832];
 
@@ -70,12 +74,49 @@ function MapController({
   return null;
 }
 
+function ZoomWatch({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  useEffect(() => { onZoom(map.getZoom()); }, [map, onZoom]);
+  return null;
+}
+
 export default function MapInner() {
-  const { sessions, activeSessionId, wishlist, addToWishlist, user, city, userLocation, setUserLocation } =
+  const { sessions, activeSessionId, wishlist, addToWishlist, removeFromWishlist, user, city, userLocation, setUserLocation } =
     useBucoStore();
+
+  const savedBookmark = (s: Spot) =>
+    wishlist.find(
+      (w) =>
+        (w.spot.id && s.id && w.spot.id === s.id) ||
+        `${w.spot.name}|${w.spot.address}`.toLowerCase() === `${s.name}|${s.address}`.toLowerCase()
+    );
   const [dbSpots, setDbSpots] = useState<Spot[]>([]);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [visited, setVisited] = useState<VisitedPin[]>([]);
+  const [friendPins, setFriendPins] = useState<FriendPin[]>([]);
+  const [towers, setTowers] = useState<Tower[]>([]);
+  const [zoom, setZoom] = useState(13);
+  const [ready, setReady] = useState(false);   // map pane positioned → safe to project markers
+  const [checkInSpot, setCheckInSpot] = useState<Spot | null>(null);
+  const [rewardsSpot, setRewardsSpot] = useState<Spot | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+
+  // Area-momentum towers (public — no sign-in needed). Shown at city zoom.
+  useEffect(() => { fetchTowers().then(setTowers); }, []);
+
+  // The user's own verified visits → growing houses on the map.
+  const loadVisited = useCallback(async () => {
+    if (!user) { setVisited([]); return; }
+    const m = await fetchUserMap(user.id);
+    setVisited(m.visited);
+  }, [user]);
+  useEffect(() => { loadVisited(); }, [loadVisited]);
+
+  // Friends' shared visits (cobalt).
+  useEffect(() => {
+    if (!user) { setFriendPins([]); return; }
+    fetchFriendsMap(user.id).then(setFriendPins);
+  }, [user]);
 
   // Ask for the user's real location once; fall back to the city centre.
   useEffect(() => {
@@ -84,7 +125,7 @@ export default function MapInner() {
     navigator.geolocation.getCurrentPosition(
       (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       () => setUserLocation(fallbackLocation()),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   }, [userLocation, setUserLocation]);
 
@@ -170,12 +211,13 @@ export default function MapInner() {
 
   return (
     <div className="flex-1 relative min-w-0">
-      <MapContainer center={TORONTO} zoom={13} className="absolute inset-0 z-0" scrollWheelZoom zoomControl={false}>
+      <MapContainer center={TORONTO} zoom={13} className="absolute inset-0 z-0" scrollWheelZoom zoomControl={false} whenReady={() => setReady(true)}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
         <MapController bounds={bounds} registerMap={(m) => { mapRef.current = m; }} />
+        <ZoomWatch onZoom={setZoom} />
 
         {userLocation && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={youIcon} zIndexOffset={500}>
@@ -225,7 +267,7 @@ export default function MapInner() {
                 </div>
                 <div className="buco-popup-meta">
                   {spot.price_label || (spot.price_min ? `$${spot.price_min}–${spot.price_max}` : "")}
-                  {spot.rating ? ` · ★ ${Number(spot.rating).toFixed(1)}` : ""}
+                  {spot.buco_pick ? " · ✦ buco pick" : ""}
                   {spot.cuisine_tags?.length ? ` · ${spot.cuisine_tags.slice(0, 2).join(", ")}` : ""}
                 </div>
                 {spot.happy_hour_label && (
@@ -237,14 +279,88 @@ export default function MapInner() {
                   <a href={`https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`} target="_blank" rel="noopener noreferrer">
                     directions ↗
                   </a>
-                  {spot.kind !== "wishlist" && (
-                    <button onClick={() => addToWishlist(spot)}>{user ? "♥ save" : "sign in to save"}</button>
-                  )}
+                  {(() => {
+                    const saved = savedBookmark(spot);
+                    return (
+                      <button
+                        onClick={() => (saved ? removeFromWishlist(saved.id) : addToWishlist(spot))}
+                        title={saved ? "Remove from saved" : user ? "Save" : "Sign in to save"}
+                        aria-label={saved ? "Remove from saved" : "Save"}
+                        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 6px" }}
+                      >
+                        <Heart size={16} fill={saved ? "#e11d48" : "none"} color={saved ? "#e11d48" : "#742e12"} />
+                      </button>
+                    );
+                  })()}
+                  <button onClick={() => setCheckInSpot(spot)}>✦ check in</button>
+                  <button onClick={() => setRewardsSpot(spot)}>★ rewards</button>
                 </div>
               </div>
             </Popup>
           </Marker>
         ))}
+        {ready && visited.map((h) =>
+          h.lat != null && h.lng != null ? (
+            <Marker
+              key={`house-${h.spot_id}`}
+              position={[Number(h.lat), Number(h.lng)]}
+              icon={houseIcon(h.building_tier)}
+              zIndexOffset={600}
+            >
+              <Popup>
+                <div className="buco-popup">
+                  <div className="buco-popup-name">{h.name}</div>
+                  <div className="buco-popup-meta">
+                    {h.building_label || "Visited"} · {h.visit_count} visit{h.visit_count === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ) : null
+        )}
+
+        {ready && friendPins.map((f) =>
+          f.lat != null && f.lng != null ? (
+            <Marker
+              key={`friend-${f.spot_id}`}
+              position={[Number(f.lat), Number(f.lng)]}
+              icon={friendIcon(f.friend_count)}
+              zIndexOffset={450}
+            >
+              <Popup>
+                <div className="buco-popup">
+                  <div className="buco-popup-name">{f.name}</div>
+                  <div className="buco-popup-meta">
+                    visited by {f.friend_names.slice(0, 3).join(", ")}
+                    {f.friend_count > 3 ? ` +${f.friend_count - 3} more` : ""}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ) : null
+        )}
+
+        {/* Momentum towers — shown at city/neighbourhood zoom */}
+        {ready && zoom <= 14 && towers.map((t) =>
+          t.lat != null && t.lng != null ? (
+            <Marker
+              key={`tower-${t.geohash7}`}
+              position={[Number(t.lat), Number(t.lng)]}
+              icon={towerIcon(t.tier)}
+              zIndexOffset={700}
+            >
+              <Popup>
+                <div className="buco-popup">
+                  <div className="buco-popup-name">🔥 Buzzing right now</div>
+                  <div className="buco-popup-meta">
+                    {t.visitor_count} recent visitor{t.visitor_count === 1 ? "" : "s"}
+                    {t.spot_names.length ? ` · ${t.spot_names.slice(0, 3).join(", ")}` : ""}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ) : null
+        )}
       </MapContainer>
 
       <ChatPanel results={results} onHoverResult={setHoverIdx} onFocusResult={focusResult} />
@@ -257,10 +373,26 @@ export default function MapInner() {
         <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700 mb-1">
           <span className="w-[10px] h-[10px] rounded-full bg-rust inline-block" /> wishlist ♥
         </div>
-        <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700">
+        <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700 mb-1">
           <span className="w-[10px] h-[10px] rounded-full bg-teal inline-block" /> buco database
         </div>
+        <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700 mb-1">
+          <span className="w-[10px] h-[10px] rounded-full inline-block" style={{ background: "#1D6B4A" }} /> your visits ⌂
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700 mb-1">
+          <span className="w-[10px] h-[10px] rounded-full inline-block" style={{ background: "#2F6FB3" }} /> friends
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[9px] text-gray-700">
+          <span className="w-[10px] h-[10px] rounded-full inline-block" style={{ background: "#E4531F" }} /> buzzing 🔥
+        </div>
       </div>
+
+      <CheckInModal
+        spot={checkInSpot}
+        onClose={() => setCheckInSpot(null)}
+        onSuccess={() => loadVisited()}
+      />
+      <RewardsModal spot={rewardsSpot} onClose={() => setRewardsSpot(null)} />
     </div>
   );
 }
