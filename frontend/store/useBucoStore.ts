@@ -8,6 +8,9 @@ import {
   removeBookmark,
   deleteConversation,
   renameConversation,
+  fetchPoints,
+  fetchConversations,
+  fetchConversation,
 } from "@/lib/api";
 
 function generateId() {
@@ -31,6 +34,8 @@ interface BucoStore {
 
   wishlist:        WishlistItem[];
   wishlistLoading: boolean;
+
+  points:          number;
 
   userLocation:    UserLocation | null;
   toast:           string | null;
@@ -56,6 +61,12 @@ interface BucoStore {
   loadWishlist:       () => Promise<void>;
   addToWishlist:      (spot: Spot) => Promise<void>;
   removeFromWishlist: (bookmarkId: string) => Promise<void>;
+
+  // points
+  loadPoints: () => Promise<void>;
+
+  // chat history (server-backed, per user)
+  loadSessions: () => Promise<void>;
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -74,6 +85,8 @@ export const useBucoStore = create<BucoStore>()(
 
       wishlist:        [],
       wishlistLoading: false,
+
+      points: 0,
 
       userLocation: null,
       toast: null,
@@ -183,9 +196,17 @@ export const useBucoStore = create<BucoStore>()(
       // ── Auth ─────────────────────────────────────────────────────────────
 
       setUser: (user) => {
+        const prev = get().user;
         set({ user });
-        if (user) get().loadWishlist();
-        else set({ wishlist: [] });
+        if (user) {
+          get().loadWishlist();
+          get().loadPoints();
+          get().loadSessions();   // pull this account's chat history from the server
+        } else if (prev) {
+          // Signed out — clear everything tied to the account, including chat,
+          // so nothing of that person is visible or usable until sign-in.
+          set({ wishlist: [], points: 0, sessions: [], activeSessionId: null });
+        }
       },
 
       // ── Wishlist ─────────────────────────────────────────────────────────
@@ -212,6 +233,43 @@ export const useBucoStore = create<BucoStore>()(
         set((s) => ({ wishlist: s.wishlist.filter((w) => w.id !== bookmarkId) }));
         const ok = await removeBookmark(user.id, bookmarkId);
         if (!ok) { showToast("Couldn't remove — try again"); get().loadWishlist(); }
+        else showToast("Removed from saved");
+      },
+
+      // ── Points ───────────────────────────────────────────────────────────
+
+      loadPoints: async () => {
+        const { user } = get();
+        if (!user) { set({ points: 0 }); return; }
+        set({ points: await fetchPoints(user.id) });
+      },
+
+      // ── Chat history ─────────────────────────────────────────────────────
+      loadSessions: async () => {
+        const { user } = get();
+        if (!user) { set({ sessions: [], activeSessionId: null }); return; }
+        const list = await fetchConversations(user.id);
+        const sessions: ChatSession[] = [];
+        for (const c of list.slice(0, 15)) {
+          const conv = await fetchConversation(c.id);
+          const raw = (conv?.messages as any[]) || [];
+          const messages: Message[] = raw.map((m) => ({
+            id: generateId(),
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content || "",
+            spots: m.spots || [],
+            timestamp: conv?.created_at || new Date().toISOString(),
+          }));
+          const firstUser = messages.find((m) => m.role === "user")?.content;
+          sessions.push({
+            id: c.id,
+            title: c.title || (firstUser || "Chat").slice(0, 48),
+            messages,
+            createdAt: c.created_at || new Date().toISOString(),
+            updatedAt: c.updated_at || new Date().toISOString(),
+          });
+        }
+        set({ sessions, activeSessionId: null });
       },
     }),
     {
