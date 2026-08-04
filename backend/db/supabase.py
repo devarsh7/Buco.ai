@@ -99,9 +99,11 @@ async def search_curated_spots(
                 ors.append(f"name.ilike.*{t}*")
                 ors.append(f"cuisine_tags.cs.{{{t}}}")
             result = base_query().or_(",".join(ors)).limit(limit).execute()
-            if result.data:
-                return result.data
-        # Fallback: no text match — return whatever fits city/category/price.
+            # A specific query ("pizza") that our curated set can't satisfy must
+            # return NOTHING here — never unrelated spots. Yelp fills the gap so
+            # the user gets what they actually asked for.
+            return result.data or []
+        # No search tokens ("show me places") → a generic browse of the city.
         result = base_query().limit(limit).execute()
         return result.data or []
     except Exception as e:
