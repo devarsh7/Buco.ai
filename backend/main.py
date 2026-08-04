@@ -7,7 +7,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from routers import chat, spots, bookmarks, conversations
+from routers import chat, spots, bookmarks, conversations, visits, reviews, friends, lists, heat
+from routers import rewards_router, manager
 
 load_dotenv()
 
@@ -41,6 +42,8 @@ frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[frontend_url, "http://localhost:3000"],
+    # Allow the Vercel production + preview deployments (*.vercel.app).
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,6 +53,13 @@ app.include_router(chat.router,      prefix="/api")
 app.include_router(spots.router,     prefix="/api")
 app.include_router(bookmarks.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
+app.include_router(visits.router,    prefix="/api")
+app.include_router(reviews.router,   prefix="/api")
+app.include_router(friends.router,   prefix="/api")
+app.include_router(lists.router,     prefix="/api")
+app.include_router(heat.router,      prefix="/api")
+app.include_router(rewards_router.router, prefix="/api")
+app.include_router(manager.router,   prefix="/api")
 
 
 @app.get("/health")
