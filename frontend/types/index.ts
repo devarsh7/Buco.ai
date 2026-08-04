@@ -54,7 +54,7 @@ export interface AuthUser {
   displayName: string;
 }
 
-export type AppView = "map" | "wishlist";
+export type AppView = "map" | "wishlist" | "feed" | "lists";
 
 export interface UserLocation {
   lat: number;

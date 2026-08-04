@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MapPin, ChevronDown, LogOut, Heart, Sparkles } from "lucide-react";
+import { MapPin, ChevronDown, LogOut, Heart, Sparkles, MessageSquare, Star, Users, ListChecks } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBucoStore } from "@/store/useBucoStore";
 import { getSupabase } from "@/lib/supabase";
+import FriendsModal from "@/components/friends/FriendsModal";
 
 const VIEW_LABEL: Record<string, string> = {
   map: "map",
   wishlist: "wishlist",
+  feed: "the feed",
+  lists: "plans",
 };
 
 export default function TopNav() {
-  const { view, city, setCity, user, setAuthModal, showToast, wishlist, setView } = useBucoStore();
+  const { view, city, setCity, user, setAuthModal, showToast, wishlist, setView, points, loadPoints } = useBucoStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,6 +27,8 @@ export default function TopNav() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  useEffect(() => { if (user) loadPoints(); }, [user, loadPoints]);
 
   const signOut = async () => {
     await getSupabase().auth.signOut();
@@ -36,6 +42,7 @@ export default function TopNav() {
   };
 
   return (
+    <>
     <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 border-b border-border bg-white/85 backdrop-blur-md z-30">
       {/* Left — brand + view */}
       <div className="flex items-center gap-3 min-w-0">
@@ -71,6 +78,42 @@ export default function TopNav() {
         >
           <MapPin size={11} />
           {city}
+        </button>
+
+        {user && (
+          <div
+            className="hidden sm:flex items-center gap-[5px] font-mono text-[10px] font-bold px-3 py-[6px] border border-border rounded-full tracking-[0.04em]"
+            style={{ color: "#a86d20" }}
+            title="Your points"
+          >
+            <Star size={11} className="fill-amber text-amber" />
+            {points}
+          </div>
+        )}
+
+        <button
+          onClick={() => (user ? setFriendsOpen(true) : setAuthModal(true))}
+          className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-gray-600 transition-all hover:text-[#2F6FB3]"
+          style={{ borderColor: "#e2dfd6" }}
+          title="Friends"
+        >
+          <Users size={14} />
+        </button>
+
+        <button
+          onClick={() => (user ? setView("lists") : setAuthModal(true))}
+          className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-gray-600 transition-all hover:text-[#2F6FB3]"
+          title="Plans"
+        >
+          <ListChecks size={14} className={view === "lists" ? "text-[#2F6FB3]" : ""} />
+        </button>
+
+        <button
+          onClick={() => setView("feed")}
+          className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-gray-600 hover:border-teal hover:text-teal transition-all"
+          title="The Feed"
+        >
+          <MessageSquare size={14} className={view === "feed" ? "text-teal" : ""} />
         </button>
 
         <button
@@ -134,5 +177,7 @@ export default function TopNav() {
         )}
       </div>
     </header>
+    {friendsOpen && <FriendsModal onClose={() => setFriendsOpen(false)} />}
+    </>
   );
 }

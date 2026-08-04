@@ -6,6 +6,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import TopNav from "@/components/layout/TopNav";
 import MapView from "@/components/map/MapView";
 import WishlistView from "@/components/wishlist/WishlistView";
+import ReviewsFeed from "@/components/feed/ReviewsFeed";
+import PlansView from "@/components/lists/PlansView";
 import AuthModal from "@/components/auth/AuthModal";
 import Toast from "@/components/ui/Toast";
 import { useBucoStore } from "@/store/useBucoStore";
@@ -37,6 +39,8 @@ export default function Home() {
             >
               {view === "map" && <MapView />}
               {view === "wishlist" && <WishlistView />}
+              {view === "feed" && <ReviewsFeed />}
+              {view === "lists" && <PlansView />}
             </motion.div>
           </AnimatePresence>
         </main>
