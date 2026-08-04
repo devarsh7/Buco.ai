@@ -1,0 +1,45 @@
+# Render blueprint for the Buco backend (FastAPI).
+# Render auto-deploys this on every push to the connected branch — so one
+# `git push` updates both Vercel (frontend) and Render (backend).
+#
+# Secrets (sync: false) are set once in the Render dashboard, not in git.
+
+services:
+  - type: web
+    name: buco-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEFAULT_CITY
+        value: Toronto, ON
+      - key: SECRET_KEY
+        generateValue: true
+      # ── set these in the dashboard (Environment tab) ──────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: YELP_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_URL
+        sync: false
+      - key: FRONTEND_URL          # your Vercel prod URL, e.g. https://bucoai.vercel.app
+        sync: false
+      - key: HEAT_CRON_KEY         # any long random string (protects /heat/recompute)
+        sync: false
+      - key: ADMIN_KEY             # any long random string (protects claim-code minting)
+        sync: false
