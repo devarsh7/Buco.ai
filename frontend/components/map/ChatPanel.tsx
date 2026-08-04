@@ -35,6 +35,11 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  // On phones, start collapsed so the map is the focus (tap "ask buco" to open).
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) setCollapsed(true);
+  }, []);
+
   const send = async () => {
     const msg = input.trim();
     if (!msg || isLoading) return;
@@ -52,7 +57,7 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
         initial={{ opacity: 0, x: -16 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        className="absolute top-3 left-3 bottom-3 z-[1050] w-[315px] flex flex-col bg-white/95 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden"
+        className="absolute top-3 left-3 bottom-3 z-[1050] w-[315px] flex flex-col bg-white/95 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden max-md:top-auto max-md:left-2 max-md:right-2 max-md:bottom-2 max-md:w-auto max-md:h-[52vh]"
       >
         <div className="flex items-center gap-2 px-3 py-[9px] border-b border-border flex-shrink-0">
           <span className="w-[6px] h-[6px] rounded-full bg-teal" />
@@ -94,7 +99,7 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
       initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className="absolute top-3 left-3 bottom-3 z-[1050] w-[315px] flex flex-col bg-white/95 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden"
+      className="absolute top-3 left-3 bottom-3 z-[1050] w-[315px] flex flex-col bg-white/95 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden max-md:top-auto max-md:left-2 max-md:right-2 max-md:bottom-2 max-md:w-auto max-md:h-[52vh]"
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-[9px] border-b border-border flex-shrink-0">

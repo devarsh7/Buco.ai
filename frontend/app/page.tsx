@@ -18,15 +18,21 @@ export default function Home() {
   // Wait for the persisted store to hydrate from localStorage so the
   // server-rendered HTML never mismatches saved sessions.
   const [mounted, setMounted] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return <div className="h-screen bg-sand-light" />;
 
   return (
     <div className="h-screen flex overflow-hidden bg-sand-light">
-      <Sidebar />
+      <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
+
+      {/* Mobile drawer backdrop */}
+      {navOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/40 z-[2999]" onClick={() => setNavOpen(false)} />
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <TopNav />
+        <TopNav onMenu={() => setNavOpen(true)} />
         <main className="flex-1 flex min-h-0">
           <AnimatePresence mode="wait">
             <motion.div

@@ -12,11 +12,13 @@ const NAV = [
   { icon: Heart, label: "wishlist", view: "wishlist" as AppView },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const {
     sessions, activeSessionId, view, city,
     newSession, openSession, renameSession, deleteSession, setView,
   } = useBucoStore();
+
+  const close = () => onClose?.();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft]         = useState("");
@@ -28,9 +30,16 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-[232px] flex-shrink-0 flex flex-col bg-white border-r border-border">
+    <aside
+      className={clsx(
+        "w-[232px] flex-shrink-0 flex flex-col bg-white border-r border-border",
+        // On phones the sidebar is an off-canvas drawer; on desktop it's static.
+        "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-[3000] max-md:w-[80vw] max-md:max-w-[300px] max-md:shadow-2xl max-md:transition-transform max-md:duration-200",
+        mobileOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
+      )}
+    >
       {/* Logo — just the B, same height as the top navbar so borders align */}
-      <div className="h-14 flex-shrink-0 flex items-center px-[18px] border-b border-border">
+      <div className="h-14 flex-shrink-0 flex items-center justify-between px-[18px] border-b border-border">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -39,13 +48,16 @@ export default function Sidebar() {
         >
           B
         </motion.div>
+        <button onClick={close} className="md:hidden p-1 text-gray-400 hover:text-gray-700" aria-label="Close menu">
+          <X size={18} />
+        </button>
       </div>
 
       {/* New chat */}
       <motion.button
         whileHover={{ scale: 1.015 }}
         whileTap={{ scale: 0.985 }}
-        onClick={newSession}
+        onClick={() => { newSession(); close(); }}
         className="mx-[10px] mt-3 mb-2 px-3 py-[9px] border border-rust rounded-lg font-mono text-[10px] font-bold text-rust flex items-center gap-[6px] tracking-[0.05em] hover:bg-rust-light transition-colors"
       >
         <Plus size={13} />
@@ -93,7 +105,7 @@ export default function Sidebar() {
               ) : (
                 <>
                   <button
-                    onClick={() => openSession(s.id)}
+                    onClick={() => { openSession(s.id); close(); }}
                     title={s.title}
                     className={clsx(
                       "flex-1 min-w-0 text-left px-4 py-[9px] font-mono text-[10px] whitespace-nowrap overflow-hidden text-ellipsis",
@@ -135,7 +147,7 @@ export default function Sidebar() {
         {NAV.map(({ icon: Icon, label, view: v }) => (
           <button
             key={v}
-            onClick={() => setView(v)}
+            onClick={() => { setView(v); close(); }}
             className={clsx(
               "w-full flex items-center gap-[9px] px-4 py-[11px] font-mono text-[10px] tracking-[0.06em] transition-all relative",
               view === v ? "text-rust font-bold" : "text-gray-600 hover:bg-sand-light hover:text-gray-900"

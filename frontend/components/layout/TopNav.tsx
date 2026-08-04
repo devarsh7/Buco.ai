@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MapPin, ChevronDown, LogOut, Heart, Sparkles, MessageSquare, Star, Users, ListChecks } from "lucide-react";
+import { MapPin, ChevronDown, LogOut, Heart, Sparkles, MessageSquare, Star, Users, ListChecks, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBucoStore } from "@/store/useBucoStore";
 import { getSupabase } from "@/lib/supabase";
@@ -14,7 +14,7 @@ const VIEW_LABEL: Record<string, string> = {
   lists: "plans",
 };
 
-export default function TopNav() {
+export default function TopNav({ onMenu }: { onMenu?: () => void }) {
   const { view, city, setCity, user, setAuthModal, showToast, wishlist, setView, points, loadPoints } = useBucoStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
@@ -46,6 +46,9 @@ export default function TopNav() {
     <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 border-b border-border bg-white/85 backdrop-blur-md z-30">
       {/* Left — brand + view */}
       <div className="flex items-center gap-3 min-w-0">
+        <button onClick={onMenu} className="md:hidden p-1 -ml-1 text-gray-600 hover:text-rust" aria-label="Open menu">
+          <Menu size={20} />
+        </button>
         <motion.div
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -53,7 +56,7 @@ export default function TopNav() {
         >
           B<em className="text-amber not-italic">u</em>co
         </motion.div>
-        <div className="h-5 w-px bg-border" />
+        <div className="hidden sm:block h-5 w-px bg-border" />
         <AnimatePresence mode="wait">
           <motion.span
             key={view}
@@ -61,7 +64,7 @@ export default function TopNav() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="flex items-center gap-[6px] font-mono text-[11px] font-bold text-gray-800 tracking-[0.08em]"
+            className="hidden sm:flex items-center gap-[6px] font-mono text-[11px] font-bold text-gray-800 tracking-[0.08em]"
           >
             <Sparkles size={12} className="text-amber" />
             {VIEW_LABEL[view]}
