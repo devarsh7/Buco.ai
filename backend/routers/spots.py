@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from models.schemas import SpotCard, SpotsResponse
 from db.supabase import search_curated_spots, get_spot_by_id
-from agent.tools import _happy_hour_status
+from agent.tools import _happy_hour_status, perform_search
 
 router = APIRouter(prefix="/spots", tags=["spots"])
 
@@ -20,6 +20,18 @@ async def get_spots(
     limit: int = Query(default=10, le=50),
 ):
     spots = await search_curated_spots(query=q, city=city, category=category, price_max=price_max, limit=limit)
+    return SpotsResponse(spots=[SpotCard(**_with_happy_hour(s)) for s in spots], total=len(spots), query=q)
+
+
+@router.get("/yelp", response_model=SpotsResponse)
+async def yelp_search(
+    q: str = Query(...),
+    city: str = Query(default="Toronto, ON"),
+    limit: int = Query(default=8, le=20),
+):
+    """Yelp-only search (no curated seed) — used for adding any restaurant to a plan."""
+    result = await perform_search(query=q, location=city, price_max=999, include_curated=False)
+    spots = (result.get("spots") or [])[:limit]
     return SpotsResponse(spots=[SpotCard(**_with_happy_hour(s)) for s in spots], total=len(spots), query=q)
 
 
