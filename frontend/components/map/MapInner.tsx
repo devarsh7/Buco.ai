@@ -16,6 +16,11 @@ import RewardsModal from "@/components/rewards/RewardsModal";
 
 const TORONTO: [number, number] = [43.6532, -79.3832];
 
+// Remember the map's last center/zoom so switching views (which remounts the
+// map) doesn't snap it back and zoom out every time.
+const lastView: { center: [number, number]; zoom: number } = { center: TORONTO, zoom: 14 };
+let centeredOnUserOnce = false;   // center on the user once per session, then remember position
+
 type PinKind = "result" | "wishlist" | "recommended" | "database";
 
 interface PinSpot extends Spot {
@@ -31,9 +36,23 @@ const PIN_COLOR: Record<PinKind, string> = {
 };
 
 function makePin(kind: PinKind, num?: number, highlighted = false) {
+  // Discovery + history spots are small Snap-style dots, so the map never looks
+  // stuffed with big teardrops.
+  if (kind === "database" || kind === "recommended") {
+    const color = PIN_COLOR[kind];
+    const size = highlighted ? 15 : 11;
+    return L.divIcon({
+      className: "buco-dot-wrap",
+      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)"></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2 - 2],
+    });
+  }
+  // Chat answers (numbered) + saved places: a compact teardrop.
   const color = highlighted ? "#742e12" : PIN_COLOR[kind];
-  const glyph = kind === "wishlist" ? "♥" : num != null ? String(num) : kind === "database" ? "✦" : "●";
-  const scale = highlighted ? 1.25 : 1;
+  const glyph = kind === "wishlist" ? "♥" : num != null ? String(num) : "●";
+  const scale = highlighted ? 1.1 : 0.82;
   return L.divIcon({
     className: "buco-pin-wrap",
     html: `
@@ -74,8 +93,17 @@ function MapController({
   return null;
 }
 
+function persistView(map: L.Map) {
+  const c = map.getCenter();
+  lastView.center = [c.lat, c.lng];
+  lastView.zoom = map.getZoom();
+}
+
 function ZoomWatch({ onZoom }: { onZoom: (z: number) => void }) {
-  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  const map = useMapEvents({
+    zoomend: () => { onZoom(map.getZoom()); persistView(map); },
+    moveend: () => persistView(map),
+  });
   useEffect(() => { onZoom(map.getZoom()); }, [map, onZoom]);
   return null;
 }
@@ -148,6 +176,15 @@ export default function MapInner() {
     );
   }, [city]);
 
+  // First load of the session: drop the user at their own location (Google-style).
+  useEffect(() => {
+    if (userLocation && mapRef.current && !centeredOnUserOnce) {
+      centeredOnUserOnce = true;
+      mapRef.current.setView([userLocation.lat, userLocation.lng], 15, { animate: true });
+      persistView(mapRef.current);
+    }
+  }, [userLocation]);
+
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
   // Latest answer's spots = numbered results.
@@ -185,15 +222,14 @@ export default function MapInner() {
     return Array.from(seen.values());
   }, [results, sessions, wishlist, dbSpots]);
 
-  // Fit to results (+you) when there's an answer; otherwise fit everything.
+  // Only recenter when there's an actual search answer — never auto-zoom on
+  // load or when returning to the map (Google-Maps-style: it stays put).
   const bounds = useMemo<[number, number][] | null>(() => {
-    const pts: [number, number][] =
-      results.length > 0
-        ? results.map((s) => [Number(s.lat), Number(s.lng)] as [number, number])
-        : pins.map((s) => [Number(s.lat), Number(s.lng)] as [number, number]);
-    if (results.length > 0 && userLocation) pts.push([userLocation.lat, userLocation.lng]);
+    if (results.length === 0) return null;
+    const pts = results.map((s) => [Number(s.lat), Number(s.lng)] as [number, number]);
+    if (userLocation) pts.push([userLocation.lat, userLocation.lng]);
     return pts.length ? pts : null;
-  }, [results, pins, userLocation]);
+  }, [results, userLocation]);
 
   const focusResult = (i: number) => {
     const s = results[i];
@@ -211,9 +247,9 @@ export default function MapInner() {
 
   return (
     <div className="flex-1 relative min-w-0">
-      <MapContainer center={TORONTO} zoom={13} className="absolute inset-0 z-0" scrollWheelZoom zoomControl={false} whenReady={() => setReady(true)}>
+      <MapContainer center={lastView.center} zoom={lastView.zoom} className="absolute inset-0 z-0" scrollWheelZoom zoomControl={false} attributionControl={false} whenReady={() => setReady(true)}>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+          attribution=""
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
         <MapController bounds={bounds} registerMap={(m) => { mapRef.current = m; }} />
@@ -248,7 +284,9 @@ export default function MapInner() {
           );
         })}
 
-        {pins.map((spot) => (
+        {pins
+          .filter((spot) => !((spot.kind === "database" || spot.kind === "recommended") && zoom < 14))
+          .map((spot) => (
           <Marker
             key={`${spot.name}-${spot.lat}-${spot.lng}`}
             position={[Number(spot.lat), Number(spot.lng)]}

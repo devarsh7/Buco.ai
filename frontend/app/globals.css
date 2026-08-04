@@ -73,7 +73,11 @@ html, body {
 }
 
 /* ── Snap map pins ─────────────────────────────────────────── */
-.buco-pin-wrap { background: none; border: none; }
+.buco-pin-wrap,
+.buco-dot-wrap,
+.buco-house-wrap,
+.buco-friend-wrap,
+.buco-tower-wrap { background: none; border: none; }
 
 .buco-pin {
   position: relative;
