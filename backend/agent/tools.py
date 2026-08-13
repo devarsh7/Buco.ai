@@ -57,6 +57,70 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+# ── Cuisine strictness ────────────────────────────────────────────────────────
+# When the user names a cuisine we NEVER show anything off-cuisine (a pizza
+# search must never surface Indian). These terms decide what counts as a match.
+CUISINE_MATCH: dict[str, list[str]] = {
+    "pizza": ["pizza", "pizzeria"],
+    "pasta": ["pasta", "italian"],
+    "italian": ["italian", "pizza", "pasta", "trattoria"],
+    "sushi": ["sushi", "japanese"],
+    "ramen": ["ramen", "japanese"],
+    "japanese": ["japanese", "sushi", "ramen", "izakaya"],
+    "pho": ["pho", "vietnamese"],
+    "vietnamese": ["vietnamese", "pho", "banh"],
+    "indian": ["indian", "pakistani", "curry", "tikka", "biryani", "punjabi", "tandoor"],
+    "thai": ["thai"],
+    "chinese": ["chinese", "dim sum", "szechuan", "sichuan", "cantonese", "dumpling", "hakka"],
+    "korean": ["korean", "bibimbap", "bulgogi"],
+    "mexican": ["mexican", "taco", "burrito", "taqueria"],
+    "burger": ["burger"],
+    "shawarma": ["shawarma", "middle eastern", "lebanese"],
+    "mediterranean": ["mediterranean", "greek", "lebanese", "falafel", "middle eastern"],
+    "greek": ["greek", "mediterranean"],
+    "vegan": ["vegan"],
+    "vegetarian": ["vegetarian"],
+    "bbq": ["bbq", "barbecue", "smokehouse"],
+    "noodle": ["noodle", "ramen", "udon", "pho"],
+    "sandwich": ["sandwich", "deli", "banh mi", "sub"],
+    "cafe": ["cafe", "coffee", "espresso"],
+    "coffee": ["coffee", "cafe", "espresso"],
+    "dessert": ["dessert", "ice cream", "bakery", "gelato"],
+    "seafood": ["seafood", "fish", "oyster"],
+    "breakfast": ["breakfast", "brunch", "diner"],
+    "brunch": ["brunch", "breakfast"],
+    "wings": ["wings", "chicken"],
+    "steak": ["steak", "steakhouse"],
+    "salon": ["salon", "nail", "hair"],
+    "spa": ["spa", "massage"],
+}
+
+# Query cuisine → Yelp category alias (tightens the API search itself).
+YELP_CATEGORY_ALIASES: dict[str, str] = {
+    "pizza": "pizza", "pasta": "italian", "italian": "italian", "sushi": "sushi",
+    "ramen": "ramen", "japanese": "japanese", "pho": "vietnamese", "vietnamese": "vietnamese",
+    "indian": "indpak", "thai": "thai", "chinese": "chinese", "korean": "korean",
+    "mexican": "mexican", "burger": "burgers", "shawarma": "mideastern",
+    "mediterranean": "mediterranean", "greek": "greek", "vegan": "vegan",
+    "vegetarian": "vegetarian", "bbq": "bbq", "seafood": "seafood",
+    "sandwich": "sandwiches", "cafe": "cafes", "coffee": "coffee", "dessert": "desserts",
+    "breakfast": "breakfast_brunch", "brunch": "breakfast_brunch", "steak": "steak",
+    "salon": "hair", "spa": "spas",
+}
+
+
+def _query_cuisines(query: str) -> list[str]:
+    q = (query or "").lower()
+    return [key for key in CUISINE_MATCH if key in q]
+
+
+def _matches_cuisine(spot: dict, match_terms: set[str]) -> bool:
+    if not match_terms:
+        return True
+    hay = (str(spot.get("name", "")) + " " + " ".join(spot.get("cuisine_tags") or [])).lower()
+    return any(t in hay for t in match_terms)
+
+
 # Only these fields go back to the LLM — keeps tool output small (token cost)
 # and keeps internal columns (embeddings, timestamps) out of the context.
 _SPOT_FIELDS = (
@@ -155,6 +219,12 @@ async def perform_search(
     if travel_limit and travel_limit > 0:
         max_distance_km = travel_limit
         hard_radius = True
+
+    # Strict cuisine: if the query names a cuisine, only matching spots survive.
+    cuisines = _query_cuisines(query)
+    match_terms: set[str] = set()
+    for c in cuisines:
+        match_terms.update(CUISINE_MATCH.get(c, [c]))
     print(f"[search_spots] query={query!r} location={location!r} price_max={price_max} "
           f"open_now={open_now} happy_hour_now={happy_hour_now} party_size={party_size} "
           f"max_distance_km={max_distance_km} exclude={exclude_names or []} "
@@ -199,10 +269,14 @@ async def perform_search(
             try:
                 params = {
                     "term": query,
-                    "limit": 10,
+                    "limit": 20,
                     "price": _yelp_price_filter(price_max),
-                    "sort_by": "rating",
+                    # Closest-first when we know where the user is — your algorithm's
+                    # cuisine → distance → cost ordering.
+                    "sort_by": "distance" if uloc else "best_match",
                 }
+                if cuisines and YELP_CATEGORY_ALIASES.get(cuisines[0]):
+                    params["categories"] = YELP_CATEGORY_ALIASES[cuisines[0]]
                 if uloc:
                     params["latitude"] = uloc["lat"]
                     params["longitude"] = uloc["lng"]
@@ -236,6 +310,17 @@ async def perform_search(
         if merged:
             cache_set(cache_key, merged)
 
+    # Strict single-cuisine — drop anything off-cuisine (applies to fresh + cached).
+    if match_terms:
+        merged = [s for s in merged if _matches_cuisine(s, match_terms)]
+
+    # Order by distance, then cost — the cuisine → distance → cost priority.
+    if uloc:
+        merged = sorted(
+            merged,
+            key=lambda s: (round(s.get("distance_km") or 9999, 1), s.get("price_min") or 9999),
+        )
+
     # Radius filter on the full candidate list.
     if max_distance_km and max_distance_km > 0 and uloc:
         within = [s for s in merged if s.get("distance_km") is not None and s["distance_km"] <= max_distance_km]
@@ -257,7 +342,7 @@ async def perform_search(
     if excluded:
         merged = [s for s in merged if s.get("name", "").lower() not in excluded]
 
-    final = merged[:6]
+    final = merged[:8]
 
     if not final:
         coverage = "" if has_yelp else " Buco's curated data currently covers Toronto only."

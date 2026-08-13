@@ -191,7 +191,7 @@ export default function MapInner() {
   const results = useMemo<Spot[]>(() => {
     const msg = [...(activeSession?.messages ?? [])].reverse()
       .find((m) => m.role === "assistant" && m.spots?.length);
-    return (msg?.spots ?? []).filter((s) => s.lat != null && s.lng != null).slice(0, 6);
+    return (msg?.spots ?? []).filter((s) => s.lat != null && s.lng != null).slice(0, 8);
   }, [activeSession]);
 
   const pins = useMemo<PinSpot[]>(() => {
