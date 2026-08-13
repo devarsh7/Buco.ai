@@ -246,7 +246,7 @@ export default function MapInner() {
   };
 
   return (
-    <div className="flex-1 relative min-w-0">
+    <div className="flex-1 relative min-w-0 min-h-0">
       <MapContainer center={lastView.center} zoom={lastView.zoom} className="absolute inset-0 z-0" scrollWheelZoom zoomControl={false} attributionControl={false} whenReady={() => setReady(true)}>
         <TileLayer
           attribution=""

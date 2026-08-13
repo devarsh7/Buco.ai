@@ -86,10 +86,11 @@ export default function ChatPanel({ results, onHoverResult, onFocusResult }: Pro
         initial={{ opacity: 0, x: -12 }}
         animate={{ opacity: 1, x: 0 }}
         onClick={() => setCollapsed(false)}
-        className="absolute top-3 left-3 z-[1050] flex items-center gap-2 bg-white/95 backdrop-blur border border-border rounded-full pl-3 pr-4 py-[9px] shadow-md font-mono text-[10px] font-bold text-rust hover:border-rust transition-all"
+        className="absolute top-3 left-3 z-[1050] flex items-center gap-2 bg-white/95 backdrop-blur border border-border rounded-full pl-3 pr-4 py-[9px] shadow-md font-mono text-[10px] font-bold text-rust hover:border-rust transition-all max-md:right-3 max-md:w-auto max-md:justify-start max-md:py-3 max-md:text-[12px] max-md:rounded-2xl"
       >
         <MessageCircle size={14} />
-        ask buco
+        <span className="max-md:hidden">ask buco</span>
+        <span className="hidden max-md:inline text-gray-500 font-normal">Search Buco — cheap eats near you…</span>
       </motion.button>
     );
   }

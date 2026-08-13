@@ -20,10 +20,10 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return <div className="h-screen bg-sand-light" />;
+  if (!mounted) return <div className="h-[100dvh] bg-sand-light" />;
 
   return (
-    <div className="h-screen flex overflow-hidden bg-sand-light">
+    <div className="h-[100dvh] flex overflow-hidden bg-sand-light">
       <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
 
       {/* Mobile drawer backdrop */}
