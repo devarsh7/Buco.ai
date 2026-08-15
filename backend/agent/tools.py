@@ -69,17 +69,17 @@ CUISINE_MATCH: dict[str, list[str]] = {
     "japanese": ["japanese", "sushi", "ramen", "izakaya"],
     "pho": ["pho", "vietnamese"],
     "vietnamese": ["vietnamese", "pho", "banh"],
-    "indian": ["indian", "pakistani", "curry", "tikka", "biryani", "punjabi", "tandoor"],
-    "thai": ["thai"],
+    "indian": ["indian", "curry", "tikka", "biryani", "punjabi", "tandoor"],
+    "thai": ["thai", "pad thai", "thai curry", "tom yum", "mango sticky rice"],
     "chinese": ["chinese", "dim sum", "szechuan", "sichuan", "cantonese", "dumpling", "hakka"],
     "korean": ["korean", "bibimbap", "bulgogi"],
-    "mexican": ["mexican", "taco", "burrito", "taqueria"],
-    "burger": ["burger"],
-    "shawarma": ["shawarma", "middle eastern", "lebanese"],
+    "mexican": ["mexican", "taco", "burrito", "taqueria", "quesadilla", "enchilada", "nachos", "fajita"],
+    "burger": ["burger", "burger joint", "hamburger", "cheeseburger", "fast food", "american", "indian burger", "veggie burger", "plant-based burger", "bison burger", "turkey burger", "chicken burger", "lamb burger", "gourmet burger", "sliders","french fries", "milkshake", "craft beer"],
+    "shawarma": ["shawarma", "middle eastern", "lebanese","kebab"],
     "mediterranean": ["mediterranean", "greek", "lebanese", "falafel", "middle eastern"],
     "greek": ["greek", "mediterranean"],
-    "vegan": ["vegan"],
-    "vegetarian": ["vegetarian"],
+    "vegan": ["vegan", "plant-based", "vegetarian", "tofu", "seitan", "tempeh"],
+    "vegetarian": ["vegetarian", "eggless"],
     "bbq": ["bbq", "barbecue", "smokehouse"],
     "noodle": ["noodle", "ramen", "udon", "pho"],
     "sandwich": ["sandwich", "deli", "banh mi", "sub"],
@@ -382,12 +382,12 @@ async def search_spots(
     max_distance_km: float = 0,
     exclude_names: list[str] | None = None,
 ) -> str:
-    """Search for budget-friendly restaurants, cafes, salons, or other local spots.
+    """Search for budget-friendly restaurants, cafes, or other local spots.
     Always use this when the user asks to find a place to eat, drink, or get a service.
 
     Args:
-        query: What the user wants (e.g. "ramen", "nail salon", "sushi under $15")
-        location: A real city/neighbourhood name (default: Toronto, ON). Never "near me" or "within X km".
+        query: What the user wants (e.g. "ramen", "pizza", "sushi under $15")
+        location: A real city/neighbourhood name (default: current Location of the user). Never "near me" or "within X km".
         price_max: Maximum spend PER PERSON in dollars (default: 15.0)
         open_now: If True, only return currently open spots
         happy_hour_now: If True, only return spots whose happy hour is active right now
