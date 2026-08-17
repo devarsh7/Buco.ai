@@ -5,7 +5,20 @@ from fastapi.responses import StreamingResponse
 from models.schemas import ChatRequest
 from agent.graph import run_agent_stream
 from agent.fastpath import extract_intent, should_fast_path, compose_answer, parse_travel_limit
-from agent.tools import perform_search, CURRENT_USER_LOCATION, CURRENT_TRAVEL_LIMIT
+from agent.tools import (
+    perform_search, CURRENT_USER_LOCATION, CURRENT_TRAVEL_LIMIT, CURRENT_STICKY_CUISINE, _query_cuisines,
+)
+
+_REFINE_WORDS = (
+    "more", "other", "another", "else", "cheap", "cheaper", "closer", "nearby",
+    "near", "expensive", "pricey", "better", "instead", "different", "similar",
+    "again", "around", "open", "any",
+)
+
+
+def _is_refinement(msg: str) -> bool:
+    m = (msg or "").lower()
+    return len(m.split()) <= 4 or any(w in m for w in _REFINE_WORDS)
 from db.supabase import save_conversation_message, get_conversation
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -134,6 +147,15 @@ async def chat(request: ChatRequest, req: Request):
     # "within X km" and the search enforces it.
     if intent is not None and travel_limit and travel_limit > 0:
         intent["radius_km"] = travel_limit
+
+    # Carry the cuisine across follow-ups: "bakery near me" then "cheaper" or
+    # "any others" still means bakery — never fall back to all-cuisine results.
+    sticky = ""
+    if intent and intent.get("is_search") and not _query_cuisines(request.message):
+        prev = _query_cuisines(_prev_user_message(history))
+        if prev and _is_refinement(request.message):
+            sticky = prev[0]
+    CURRENT_STICKY_CUISINE.set(sticky)
 
     if should_fast_path(intent):
         print(f"[chat] FAST PATH: {intent}")

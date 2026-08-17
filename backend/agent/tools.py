@@ -27,6 +27,12 @@ CURRENT_TRAVEL_LIMIT: contextvars.ContextVar[float] = contextvars.ContextVar(
     "buco_travel_limit", default=0.0
 )
 
+# The cuisine carried over from an earlier turn, so a follow-up like "cheaper" or
+# "any others" still means the same cuisine the user was just browsing.
+CURRENT_STICKY_CUISINE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "buco_sticky_cuisine", default=""
+)
+
 YELP_BASE_URL = "https://api.yelp.com/v3/businesses/search"
 YELP_PRICE_MAP = {15: "1,2", 20: "1,2", 25: "1,2,3", 999: "1,2,3,4"}
 
@@ -225,6 +231,10 @@ async def perform_search(
 
     # Strict cuisine: if the query names a cuisine, only matching spots survive.
     cuisines = _query_cuisines(query)
+    if not cuisines:
+        sticky = CURRENT_STICKY_CUISINE.get()
+        if sticky:
+            cuisines = [sticky]
     match_terms: set[str] = set()
     for c in cuisines:
         match_terms.update(CUISINE_MATCH.get(c, [c]))
