@@ -10,7 +10,10 @@ from db.supabase import (
     search_curated_spots,
     save_bookmark as db_save_bookmark,
     get_user_bookmarks as db_get_bookmarks,
+    get_spot_by_id,
+    _is_uuid,
 )
+from db.reviews import get_spot_reviews
 from db.redis_client import cache_get, cache_set, make_search_cache_key
 
 # Set per-request by the agent runner — the user's real coordinates.
@@ -457,4 +460,78 @@ async def get_user_bookmarks(user_id: str) -> str:
     return json.dumps({"spots": spots, "total": len(spots)})
 
 
-BUCO_TOOLS = [search_spots, save_bookmark, get_user_bookmarks]
+YELP_REVIEWS_URL = "https://api.yelp.com/v3/businesses/{id}/reviews"
+
+
+async def _fetch_yelp_reviews(yelp_id: str) -> list[dict]:
+    """Up to 3 real Yelp review excerpts for a business."""
+    key = os.getenv("YELP_API_KEY", "")
+    if not key or "your_yelp" in key or not yelp_id:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                YELP_REVIEWS_URL.format(id=yelp_id),
+                headers={"Authorization": f"Bearer {key}"},
+                params={"limit": 3, "sort_by": "yelp_sort"},
+            )
+            if resp.status_code != 200:
+                return []
+            out = []
+            for rv in resp.json().get("reviews", []):
+                text = (rv.get("text") or "").strip()
+                if text:
+                    out.append({
+                        "text": text,
+                        "rating": rv.get("rating"),
+                        "user": (rv.get("user") or {}).get("name", "A Yelp user"),
+                        "source": "yelp",
+                    })
+            return out
+    except Exception as e:
+        print(f"[Yelp reviews] {e}")
+        return []
+
+
+async def fetch_reviews_for(spot_id: str, name: str = "") -> list[dict]:
+    """Real reviews for a spot: Buco members' verified reviews + Yelp excerpts."""
+    reviews: list[dict] = []
+    yelp_id = None
+    if _is_uuid(spot_id):
+        try:
+            for r in await get_spot_reviews(spot_id, limit=10):
+                if r.get("comment"):
+                    reviews.append({
+                        "text": r["comment"],
+                        "rating": "worth it" if r.get("worth_it") else "not worth it",
+                        "user": r.get("user_name", "A local"),
+                        "source": "buco",
+                    })
+        except Exception:
+            pass
+        spot = await get_spot_by_id(spot_id)
+        yelp_id = (spot or {}).get("yelp_id")
+    else:
+        yelp_id = spot_id  # already a Yelp business id
+    if yelp_id:
+        reviews.extend(await _fetch_yelp_reviews(yelp_id))
+    return reviews
+
+
+@tool
+async def get_reviews(spot_id: str, name: str = "") -> str:
+    """Fetch REAL reviews for a spot the user asked about, so you can summarize them.
+
+    Use the spot's id from a result you already showed. Returns actual review text
+    from Yelp and from verified Buco members — NEVER invent reviews. Summarize only
+    what this returns; if it returns none, tell the user there are no reviews yet.
+
+    Args:
+        spot_id: The id of a spot you already showed the user.
+        name: The spot's name, for your reference.
+    """
+    reviews = await fetch_reviews_for(spot_id, name)
+    return json.dumps({"reviews": reviews, "count": len(reviews), "name": name})
+
+
+BUCO_TOOLS = [search_spots, save_bookmark, get_user_bookmarks, get_reviews]
