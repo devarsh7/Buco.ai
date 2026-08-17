@@ -43,7 +43,7 @@ export default function TopNav({ onMenu }: { onMenu?: () => void }) {
 
   return (
     <>
-    <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 border-b border-border bg-white/85 backdrop-blur-md z-30">
+    <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 border-b border-border bg-white/85 backdrop-blur-md z-[1100]">
       {/* Left — brand + view */}
       <div className="flex items-center gap-3 min-w-0">
         <button onClick={onMenu} className="md:hidden p-1 -ml-1 text-gray-600 hover:text-rust" aria-label="Open menu">
