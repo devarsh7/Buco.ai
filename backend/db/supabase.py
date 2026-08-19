@@ -112,6 +112,22 @@ async def search_curated_spots(
         return []
 
 
+async def get_venue_public(spot_id: str) -> dict | None:
+    """Public venue profile (menu/deal photos, deals, happy hour) for a curated spot."""
+    if not _is_uuid(spot_id):
+        return None
+    client = get_supabase_client()
+    try:
+        r = (
+            client.table("spots")
+            .select("name, website, menu_url, menu_photos, deal_photos, deal_comment, happy_hour_note")
+            .eq("id", spot_id).single().execute()
+        )
+        return r.data
+    except Exception:
+        return None
+
+
 async def get_spot_by_id(spot_id: str) -> dict | None:
     client = get_supabase_client()
     try:

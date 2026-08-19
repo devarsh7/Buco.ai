@@ -405,6 +405,15 @@ class RedemptionStats(BaseModel):
     points_spent: int = 0
 
 
+class VenueProfile(BaseModel):
+    website: str = ""
+    menu_url: str = ""
+    menu_photos: list[str] = []
+    deal_photos: list[str] = []
+    deal_comment: str = ""
+    happy_hour_note: str = ""
+
+
 class DashboardResponse(BaseModel):
     spot_id: str
     spot_name: str = ""
@@ -413,6 +422,32 @@ class DashboardResponse(BaseModel):
     momentum: MomentumStat
     redemptions: RedemptionStats
     rewards: list[RewardCard] = []
+    profile: VenueProfile = Field(default_factory=VenueProfile)
+
+
+class VenuePublic(BaseModel):
+    name: str = ""
+    website: str = ""
+    menu_url: str = ""
+    menu_photos: list[str] = []
+    deal_photos: list[str] = []
+    deal_comment: str = ""
+    happy_hour_note: str = ""
+
+
+class ProfileUpdateBody(BaseModel):
+    user_id: str
+    name: Optional[str] = None
+    website: Optional[str] = None
+    deal_comment: Optional[str] = None
+    happy_hour_note: Optional[str] = None
+    menu_url: Optional[str] = None
+
+
+class PhotoBody(BaseModel):
+    user_id: str
+    kind: str          # "menu" | "deal"
+    url: str
 
 
 class ManagerRewardCreate(BaseModel):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException
-from models.schemas import SpotCard, SpotsResponse
-from db.supabase import search_curated_spots, get_spot_by_id
+from models.schemas import SpotCard, SpotsResponse, VenuePublic
+from db.supabase import search_curated_spots, get_spot_by_id, get_venue_public
 from agent.tools import _happy_hour_status, perform_search
 
 router = APIRouter(prefix="/spots", tags=["spots"])
@@ -33,6 +33,16 @@ async def yelp_search(
     result = await perform_search(query=q, location=city, price_max=999, include_curated=False)
     spots = (result.get("spots") or [])[:limit]
     return SpotsResponse(spots=[SpotCard(**_with_happy_hour(s)) for s in spots], total=len(spots), query=q)
+
+
+@router.get("/{spot_id}/venue", response_model=VenuePublic)
+async def spot_venue(spot_id: str):
+    """Public venue profile shown to customers (menu/deal photos, deals, happy hour)."""
+    v = await get_venue_public(spot_id)
+    if not v:
+        return VenuePublic()
+    keys = ("name", "website", "menu_url", "menu_photos", "deal_photos", "deal_comment", "happy_hour_note")
+    return VenuePublic(**{k: v.get(k) for k in keys if v.get(k) is not None})
 
 
 @router.get("/{spot_id}", response_model=SpotCard)

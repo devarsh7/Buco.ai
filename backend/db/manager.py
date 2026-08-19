@@ -85,7 +85,9 @@ async def get_dashboard(user_id: str, spot_id: str) -> dict | None:
         return None
 
     now = datetime.now(timezone.utc)
-    spot = (client.table("spots").select("name").eq("id", spot_id).single().execute()).data or {}
+    spot = (client.table("spots").select(
+        "name, website, menu_url, menu_photos, deal_photos, deal_comment, happy_hour_note"
+    ).eq("id", spot_id).single().execute()).data or {}
 
     # ── visits ────────────────────────────────────────────────────────────
     visits = (client.table("visits").select("user_id, created_at")
@@ -161,7 +163,58 @@ async def get_dashboard(user_id: str, spot_id: str) -> dict | None:
         "spot_id": spot_id, "spot_name": spot.get("name", ""),
         "visits": visit_stats, "reviews": review_stats,
         "momentum": momentum, "redemptions": redemption_stats, "rewards": reward_cards,
+        "profile": {
+            "website": spot.get("website") or "",
+            "menu_url": spot.get("menu_url") or "",
+            "menu_photos": spot.get("menu_photos") or [],
+            "deal_photos": spot.get("deal_photos") or [],
+            "deal_comment": spot.get("deal_comment") or "",
+            "happy_hour_note": spot.get("happy_hour_note") or "",
+        },
     }
+
+
+# ── Venue profile (name, website, photos, deals, happy hour) ───────────────────
+
+_PROFILE_FIELDS = {"name", "website", "deal_comment", "happy_hour_note", "menu_url"}
+
+
+async def update_profile(user_id: str, spot_id: str, fields: dict) -> dict:
+    if not await is_manager(user_id, spot_id):
+        return {"ok": False, "message": "You don't manage this venue."}
+    update = {k: v for k, v in (fields or {}).items() if k in _PROFILE_FIELDS and v is not None}
+    if not update:
+        return {"ok": False, "message": "Nothing to update."}
+    try:
+        get_supabase_client().table("spots").update(update).eq("id", spot_id).execute()
+        return {"ok": True, "message": "Saved."}
+    except Exception as e:
+        print(f"[manager] update_profile: {e}")
+        return {"ok": False, "message": "Couldn't save."}
+
+
+async def change_photo(user_id: str, spot_id: str, kind: str, url: str, add: bool) -> dict:
+    if kind not in ("menu", "deal"):
+        return {"ok": False, "message": "Bad photo type."}
+    if not await is_manager(user_id, spot_id):
+        return {"ok": False, "message": "You don't manage this venue."}
+    if not url:
+        return {"ok": False, "message": "No photo."}
+    col = "menu_photos" if kind == "menu" else "deal_photos"
+    client = get_supabase_client()
+    try:
+        row = client.table("spots").select(col).eq("id", spot_id).single().execute().data or {}
+        photos = list(row.get(col) or [])
+        if add:
+            if url not in photos:
+                photos.append(url)
+        else:
+            photos = [p for p in photos if p != url]
+        client.table("spots").update({col: photos}).eq("id", spot_id).execute()
+        return {"ok": True, "message": "Photo added." if add else "Photo removed."}
+    except Exception as e:
+        print(f"[manager] change_photo: {e}")
+        return {"ok": False, "message": "Couldn't update photos."}
 
 
 async def deactivate_reward(user_id: str, reward_id: str) -> dict:

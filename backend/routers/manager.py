@@ -6,10 +6,11 @@ from models.schemas import (
     ManagerSpotCard, ManagerSpotsResponse, ClaimBody, GenClaimBody,
     DashboardResponse, VisitStats, ReviewStats, MomentumStat, RedemptionStats,
     RewardCard, ManagerRewardCreate, DeactivateBody, ActionResponse,
+    VenueProfile, ProfileUpdateBody, PhotoBody,
 )
 from db.manager import (
     claim_spot, get_managed_spots, get_dashboard, is_manager,
-    generate_claim_code, deactivate_reward,
+    generate_claim_code, deactivate_reward, update_profile, change_photo,
 )
 from db.rewards import create_reward
 
@@ -40,7 +41,24 @@ async def dashboard(spot_id: str, user_id: str = Query(...)):
         momentum=MomentumStat(**d["momentum"]),
         redemptions=RedemptionStats(**d["redemptions"]),
         rewards=[RewardCard(**r) for r in d["rewards"]],
+        profile=VenueProfile(**d.get("profile", {})),
     )
+
+
+@router.patch("/{spot_id}/profile", response_model=ActionResponse)
+async def edit_profile(spot_id: str, body: ProfileUpdateBody):
+    fields = body.model_dump(exclude={"user_id"}, exclude_none=True)
+    return ActionResponse(**await update_profile(body.user_id, spot_id, fields))
+
+
+@router.post("/{spot_id}/photos", response_model=ActionResponse)
+async def add_photo(spot_id: str, body: PhotoBody):
+    return ActionResponse(**await change_photo(body.user_id, spot_id, body.kind, body.url, add=True))
+
+
+@router.post("/{spot_id}/photos/remove", response_model=ActionResponse)
+async def remove_photo(spot_id: str, body: PhotoBody):
+    return ActionResponse(**await change_photo(body.user_id, spot_id, body.kind, body.url, add=False))
 
 
 @router.post("/{spot_id}/rewards", response_model=dict)
