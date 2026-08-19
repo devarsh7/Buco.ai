@@ -24,8 +24,9 @@ Reply with ONLY a JSON object, no other text:
 {{
  "is_search": true/false,      // true if this is a request to find food/drink/service spots
  "needs_llm": true/false,      // true if it needs conversation: comparisons ("which is better"),
-                               // opinions, questions about a specific place, saving/bookmarks,
-                               // multi-part questions, or anything that is not a plain search
+                               // opinions, questions about a specific place, reviews or
+                               // "summarize the reviews / what do people say about X",
+                               // saving/bookmarks, multi-part questions, or anything not a plain search
  "query": "search words",      // the craving distilled: "cheap italian pasta" -> "italian pasta"
  "price_max": 15,              // per-person budget in dollars; if a TOTAL and group given, divide
  "party_size": 1,
