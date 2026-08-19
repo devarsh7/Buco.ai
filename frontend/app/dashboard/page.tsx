@@ -7,6 +7,7 @@ import {
   getManagedSpots, claimSpot, getDashboard, createManagerReward, deactivateReward,
   ManagerSpot, Dashboard, RewardCard,
 } from "@/lib/api";
+import VenueProfileCard from "@/components/dashboard/VenueProfileCard";
 
 const TIER_LABEL = ["—", "warming up", "hot", "blazing 🔥"];
 
@@ -141,6 +142,14 @@ export default function DashboardPage() {
         <div className="text-gray-500 text-[13px]">Loading…</div>
       ) : (
         <div className="flex flex-col gap-6">
+          <VenueProfileCard
+            userId={user!.id}
+            spotId={dash.spot_id}
+            spotName={dash.spot_name}
+            profile={dash.profile}
+            onSaved={loadDash}
+          />
+
           {/* stat grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Stat label="Verified visits" value={dash.visits.total} sub={`${dash.visits.last_7d} in last 7d`} />

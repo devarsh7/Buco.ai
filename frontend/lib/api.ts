@@ -701,6 +701,15 @@ export interface DayCount { date: string; count: number; }
 export interface DashReview {
   user_name: string; worth_it: boolean; actual_spend?: number | null; comment: string; created_at?: string | null;
 }
+export interface VenueProfile {
+  website: string;
+  menu_url: string;
+  menu_photos: string[];
+  deal_photos: string[];
+  deal_comment: string;
+  happy_hour_note: string;
+}
+
 export interface Dashboard {
   spot_id: string;
   spot_name: string;
@@ -709,6 +718,65 @@ export interface Dashboard {
   momentum: { tier: number; visitor_count: number };
   redemptions: { issued: number; redeemed: number; points_spent: number };
   rewards: RewardCard[];
+  profile: VenueProfile;
+}
+
+/** Uploads a venue photo (menu/deal) to Supabase Storage and returns a public URL. */
+export async function uploadVenuePhoto(userId: string, spotId: string, kind: "menu" | "deal", file: File): Promise<string> {
+  try {
+    const supabase = getSupabase();
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `venue/${spotId}/${kind}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("dishes").upload(path, file, {
+      cacheControl: "3600", upsert: false, contentType: file.type || "image/jpeg",
+    });
+    if (error) { console.error("[uploadVenuePhoto]", error.message); return ""; }
+    return supabase.storage.from("dishes").getPublicUrl(path).data.publicUrl;
+  } catch (e) {
+    console.error("[uploadVenuePhoto]", e);
+    return "";
+  }
+}
+
+export async function updateVenueProfile(userId: string, spotId: string, fields: {
+  name?: string; website?: string; deal_comment?: string; happy_hour_note?: string; menu_url?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  try {
+    const resp = await fetch(`${API_URL}/api/manager/${spotId}/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, ...fields }),
+    });
+    return await resp.json();
+  } catch {
+    return { ok: false, message: "Couldn't reach the server." };
+  }
+}
+
+export async function addVenuePhoto(userId: string, spotId: string, kind: "menu" | "deal", url: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const resp = await fetch(`${API_URL}/api/manager/${spotId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, kind, url }),
+    });
+    return await resp.json();
+  } catch {
+    return { ok: false, message: "Couldn't reach the server." };
+  }
+}
+
+export async function removeVenuePhoto(userId: string, spotId: string, kind: "menu" | "deal", url: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const resp = await fetch(`${API_URL}/api/manager/${spotId}/photos/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, kind, url }),
+    });
+    return await resp.json();
+  } catch {
+    return { ok: false, message: "Couldn't reach the server." };
+  }
 }
 
 export async function getManagedSpots(userId: string): Promise<ManagerSpot[]> {
