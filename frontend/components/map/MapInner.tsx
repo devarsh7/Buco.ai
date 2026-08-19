@@ -37,17 +37,17 @@ const PIN_COLOR: Record<PinKind, string> = {
 };
 
 function makePin(kind: PinKind, num?: number, highlighted = false) {
-  // Discovery + history spots are small Snap-style dots, so the map never looks
-  // stuffed with big teardrops.
+  // Discovery + history spots are small houses (shown when zoomed in), so the
+  // map reads like a little neighbourhood rather than a wall of big pins.
   if (kind === "database" || kind === "recommended") {
-    const color = PIN_COLOR[kind];
-    const size = highlighted ? 15 : 11;
+    const color = highlighted ? "#742e12" : "#8a7f72";
+    const size = highlighted ? 22 : 18;
     return L.divIcon({
       className: "buco-dot-wrap",
-      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)"></div>`,
+      html: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))"><path d="M12 3 L21 11 H18 V20 H6 V11 H3 Z" fill="${color}"/><rect x="10" y="14" width="4" height="6" rx="0.5" fill="#fff" opacity="0.85"/></svg>`,
       iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2 - 2],
+      iconAnchor: [size / 2, size - 2],
+      popupAnchor: [0, -size + 2],
     });
   }
   // Chat answers (numbered) + saved places: a compact teardrop.
@@ -381,8 +381,8 @@ export default function MapInner() {
           ) : null
         )}
 
-        {/* Momentum towers — shown at city/neighbourhood zoom */}
-        {ready && zoom <= 14 && towers.map((t) =>
+        {/* Momentum towers — shown when zoomed out; resolve into houses on zoom-in */}
+        {ready && zoom <= 13 && towers.map((t) =>
           t.lat != null && t.lng != null ? (
             <Marker
               key={`tower-${t.geohash7}`}

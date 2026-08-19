@@ -58,23 +58,34 @@ export function friendIcon(count = 1): L.DivIcon {
   });
 }
 
-/** Area-momentum tower (Phase 3). Height + colour scale with heat tier. */
+/** Area-momentum tower (Phase 3) — a 3D isometric building. Height + colour
+ *  scale with heat tier: warm amber → tangerine → blazing ember. */
 export function towerIcon(tier: number): L.DivIcon {
   const t = Math.max(1, Math.min(3, tier || 1));
-  const color = TOWER_COLORS[t - 1];
-  const h = [34, 48, 64][t - 1];
-  const w = 22;
+  const pal = [
+    { top: "#F6C25A", left: "#EBA525", right: "#B9800F" },  // 1 · warming
+    { top: "#F3853F", left: "#E4531F", right: "#A93A10" },  // 2 · hot
+    { top: "#EC5A24", left: "#C8410F", right: "#7E2206" },  // 3 · blazing
+  ][t - 1];
+  const h = [40, 58, 80][t - 1];      // building height
+  const bw = 11, ry = 6, cx = 20, w = 40, bodyTop = 4;
+  const RyY = bodyTop + ry, By = bodyTop + 2 * ry;
+  const Ryb = RyY + h, Byb = By + h;
+  const total = Byb + 5;
+  const glow = t === 3 ? `<ellipse cx="${cx}" cy="${Byb + 1}" rx="16" ry="4" fill="#E4531F" opacity="0.28"/>` : "";
   return L.divIcon({
     className: "buco-tower-wrap",
     html: `
-      <div class="buco-tower" style="width:${w}px;height:${h}px">
-        <svg viewBox="0 0 22 ${h}" width="${w}" height="${h}" style="filter:drop-shadow(0 4px 6px rgba(0,0,0,.3))">
-          <rect x="6" y="2" width="10" height="${h - 4}" rx="2" fill="${color}"/>
-          <circle cx="11" cy="6" r="2.4" fill="rgba(255,255,255,.9)"/>
+      <div style="width:${w}px;height:${total}px">
+        <svg viewBox="0 0 ${w} ${total}" width="${w}" height="${total}" style="filter:drop-shadow(0 5px 5px rgba(0,0,0,.32))">
+          ${glow}
+          <polygon points="${cx - bw},${RyY} ${cx},${By} ${cx},${Byb} ${cx - bw},${Ryb}" fill="${pal.left}" opacity="0.96"/>
+          <polygon points="${cx},${By} ${cx + bw},${RyY} ${cx + bw},${Ryb} ${cx},${Byb}" fill="${pal.right}" opacity="0.96"/>
+          <polygon points="${cx},${bodyTop} ${cx + bw},${RyY} ${cx},${By} ${cx - bw},${RyY}" fill="${pal.top}"/>
         </svg>
       </div>`,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h - 2],
-    popupAnchor: [0, -h + 6],
+    iconSize: [w, total],
+    iconAnchor: [cx, total - 3],
+    popupAnchor: [0, -total + 10],
   });
 }
