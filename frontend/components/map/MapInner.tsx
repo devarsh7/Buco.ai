@@ -13,6 +13,7 @@ import ChatPanel from "./ChatPanel";
 import { houseIcon, friendIcon, towerIcon } from "./mapIcons";
 import CheckInModal from "@/components/checkin/CheckInModal";
 import RewardsModal from "@/components/rewards/RewardsModal";
+import PlaceDetailSheet from "./PlaceDetailSheet";
 
 const TORONTO: [number, number] = [43.6532, -79.3832];
 
@@ -127,6 +128,7 @@ export default function MapInner() {
   const [ready, setReady] = useState(false);   // map pane positioned → safe to project markers
   const [checkInSpot, setCheckInSpot] = useState<Spot | null>(null);
   const [rewardsSpot, setRewardsSpot] = useState<Spot | null>(null);
+  const [detailSpot, setDetailSpot] = useState<Spot | null>(null);
   const mapRef = useRef<L.Map | null>(null);
 
   // Area-momentum towers (public — no sign-in needed). Shown at city zoom.
@@ -332,6 +334,7 @@ export default function MapInner() {
                   })()}
                   <button onClick={() => setCheckInSpot(spot)}>✦ check in</button>
                   <button onClick={() => setRewardsSpot(spot)}>★ rewards</button>
+                  <button onClick={() => setDetailSpot(spot)}>details ↗</button>
                 </div>
               </div>
             </Popup>
@@ -431,6 +434,12 @@ export default function MapInner() {
         onSuccess={() => loadVisited()}
       />
       <RewardsModal spot={rewardsSpot} onClose={() => setRewardsSpot(null)} />
+      <PlaceDetailSheet
+        spot={detailSpot}
+        onClose={() => setDetailSpot(null)}
+        onCheckIn={(s) => { setDetailSpot(null); setCheckInSpot(s); }}
+        onRewards={(s) => { setDetailSpot(null); setRewardsSpot(s); }}
+      />
     </div>
   );
 }

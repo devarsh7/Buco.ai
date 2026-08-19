@@ -539,6 +539,27 @@ export async function addPlanItem(userId: string, listId: string, spotId: string
   }
 }
 
+export interface VenuePublic {
+  name: string;
+  website: string;
+  menu_url: string;
+  menu_photos: string[];
+  deal_photos: string[];
+  deal_comment: string;
+  happy_hour_note: string;
+}
+
+/** Public venue profile (menu/deal photos, deals, happy hour) shown to customers. */
+export async function fetchVenue(spotId: string): Promise<VenuePublic | null> {
+  try {
+    const resp = await fetch(`${API_URL}/api/spots/${spotId}/venue`);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch {
+    return null;
+  }
+}
+
 /** Yelp-only search for adding any restaurant to a plan (not limited to the seed). */
 export async function searchYelp(q: string, city = "Toronto, ON"): Promise<Spot[]> {
   const qs = new URLSearchParams({ q, city });
